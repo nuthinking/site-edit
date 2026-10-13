@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { describe, find, target, type Described } from "./locate";
+import { browserLocales, pickLocale, resolveMessages, type Languages } from "./messages";
 import { ReviewPanel } from "./ReviewPanel";
 import { ensureStyles } from "./styles";
 
@@ -35,6 +36,10 @@ export type SiteEditProps = {
   holdMs?: number;
   /** Colours and fonts, for sites without CSS tokens; sets the --se-* variables. By default the widget inherits the page's font and colours. */
   theme?: SiteEditTheme;
+  /** The widget's strings in other languages, keyed by locale; English is built in. Type each as `Messages` to prove it complete. */
+  messages?: Languages;
+  /** Forces the language. Default: the page's locale when a language was given for it, else the browser's, else English. */
+  uiLocale?: string;
 };
 
 export type SiteEditTheme = Partial<{
@@ -74,7 +79,7 @@ type Note = {
   element: Described;
 };
 type Point = { x: number; y: number };
-type Draft = Point & { element: Described; text: string; languages: "both" | "this" };
+type Draft = Point & { element: Described; text: string; languages: "both" | "this"; /** Set when editing an existing note. */ id?: string };
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -112,13 +117,14 @@ const subscribePath = (cb: () => void) => {
 };
 const pathNow = () => window.location.pathname;
 
-export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = [], sourceLocale = locales[0], pathname: pathProp, onNavigate, cookiePrefix = "site-edit", holdMs = 450, theme }: SiteEditProps) {
+export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = [], sourceLocale = locales[0], pathname: pathProp, onNavigate, cookiePrefix = "site-edit", holdMs = 450, theme, uiLocale, messages: languages }: SiteEditProps) {
   const base = basePath.replace(/\/$/, "");
   const ownPath = useSyncExternalStore(subscribePath, pathNow, () => "/");
   const pathname = pathProp ?? ownPath;
   const segment = pathname.split("/")[1] ?? "";
   const locale = locales.includes(segment) ? segment : "";
   const multilingual = locales.length > 1;
+  const m = resolveMessages(pickLocale([uiLocale, locale, ...browserLocales()], languages), languages);
   const pageLabel = (path: string) => (locale ? path.replace(new RegExp(`^/(${locales.join("|")})(?=/|$)`), "") : path) || "/";
   const NOTES_KEY = `${cookiePrefix}:notes:${pr ? `pr-${pr}` : branch || "local"}`;
   const MODE_KEY = `${cookiePrefix}:mode`;
@@ -372,6 +378,11 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
   const addNote = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!draft || !draft.text.trim()) return;
+    if (draft.id) {
+      saveNotes(notes.map((n) => (n.id === draft.id ? { ...n, text: draft.text.trim(), languages: draft.languages } : n)));
+      setDraft(null);
+      return;
+    }
     const note: Note = {
       id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       text: draft.text.trim(),
@@ -384,6 +395,12 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
     saveNotes([...notes, note]);
     setDraft(null);
     setStatus("idle");
+  };
+
+  /** Opens an existing note in the note box, prefilled; Save replaces its text. */
+  const editNote = (n: Note, at: Point) => {
+    setActive(null);
+    setDraft({ ...at, id: n.id, element: n.element, text: n.text, languages: n.languages });
   };
 
   const remove = (id: string) => {
@@ -447,8 +464,8 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
     <>
       <div className={cx(!phone && "se-scroll")}>
         {/* On a PR's preview: the agent's replies, and Ship or Discard, where the result is in view. */}
-        {pr && <ReviewPanel pr={pr} basePath={base} />}
-        {notes.length === 0 && <p className="se-empty se-muted">{phone ? "Press and hold on anything to add a note." : "Alt+right-click, or press and hold, on anything to add a note."}</p>}
+        {pr && <ReviewPanel pr={pr} basePath={base} uiLocale={uiLocale ?? locale} messages={languages} />}
+        {notes.length === 0 && <p className="se-empty se-muted">{phone ? m.hintPhone : m.hintDesktop}</p>}
         {byPage.map((g) => (
           <div key={g.path} className="se-group">
             <p className="se-eyebrow se-group-title">{pageLabel(g.path)}</p>
@@ -458,7 +475,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                   <span className="se-note-n">{notes.indexOf(n) + 1}</span>
                   <span className="se-clamp">{n.text}</span>
                 </button>
-                <button type="button" aria-label="Delete note" onClick={() => remove(n.id)} className="se-x">
+                <button type="button" aria-label={m.deleteNote} onClick={() => remove(n.id)} className="se-x">
                   ×
                 </button>
               </div>
@@ -469,26 +486,26 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
       <div className="se-footer">
         <div className="se-footer-left">
           <button type="button" className="se-btn" onClick={() => setModeStored(false)}>
-            Exit
+            {m.exit}
           </button>
           <button type="button" className="se-btn" onClick={logout} title={login}>
-            Log out
+            {m.logOut}
           </button>
         </div>
         <button type="button" className="se-btn se-btn-primary" onClick={send} disabled={notes.length === 0 || status === "sending"}>
-          {status === "sending" ? "Sending…" : notes.length ? `Send ${notes.length}` : "Send"}
+          {status === "sending" ? m.sending : m.send(notes.length)}
         </button>
       </div>
       {status === "sent" && sentUrl && (
         <p className="se-status se-muted">
-          Sent.{" "}
+          {m.sent}{" "}
           <a href={sentUrl} target="_blank" rel="noreferrer" className="se-link">
-            Follow it on GitHub
+            {m.followOnGitHub}
           </a>
           .
         </p>
       )}
-      {status === "failed" && <p className="se-status se-error">Could not send. Try again.</p>}
+      {status === "failed" && <p className="se-status se-error">{m.sendFailed}</p>}
     </>
   );
 
@@ -496,17 +513,17 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
     <div data-site-edit="" className="se">
       {signIn &&
         float(
-          "Sign in",
+          m.titleSignIn,
           signIn,
           () => setSignIn(null),
           <>
-            <p className="se-p se-muted">Editing this site needs write access to its repository.</p>
+            <p className="se-p se-muted">{m.signInNeeded}</p>
             <div className="se-row">
               <button type="button" className="se-btn" onClick={() => setSignIn(null)}>
-                Cancel
+                {m.cancel}
               </button>
               <button type="button" className="se-btn se-btn-primary" onClick={startSignIn}>
-                Sign in with GitHub
+                {m.signIn}
               </button>
             </div>
           </>,
@@ -519,7 +536,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             if (!p) return null;
             const i = notes.indexOf(n) + 1;
             return (
-              <button key={n.id} type="button" aria-label={`Note ${i}`} onClick={() => setActive(active === n.id ? null : n.id)} className="se-pin" data-active={active === n.id ? "" : undefined} style={{ left: p.x, top: p.y }}>
+              <button key={n.id} type="button" aria-label={`${m.titleNote} ${i}`} onClick={() => setActive(active === n.id ? null : n.id)} className="se-pin" data-active={active === n.id ? "" : undefined} style={{ left: p.x, top: p.y }}>
                 {i}
               </button>
             );
@@ -528,22 +545,23 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
           {activeNote &&
             activeAt &&
             float(
-              "Note",
+              m.titleNote,
               activeAt,
               () => setActive(null),
               <>
                 <p className="se-eyebrow">
-                  {notes.indexOf(activeNote) + 1} · {activeNote.element.component ?? "page"} › {activeNote.element.tag}
+                  {notes.indexOf(activeNote) + 1} · {activeNote.element.component ?? m.page} › {activeNote.element.tag}
                 </p>
                 <p className="se-p se-mt1" style={{ fontSize: 14 }}>
                   {activeNote.text}
                 </p>
+                {/* Tapping outside or on the pin closes it; the buttons are for what changes the note. */}
                 <div className="se-row se-between">
                   <button type="button" className="se-btn se-btn-quiet-danger" onClick={() => remove(activeNote.id)}>
-                    Delete
+                    {m.delete}
                   </button>
-                  <button type="button" className="se-btn" onClick={() => setActive(null)}>
-                    Close
+                  <button type="button" className="se-btn" onClick={() => editNote(activeNote, activeAt)}>
+                    {m.edit}
                   </button>
                 </div>
               </>,
@@ -551,12 +569,12 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
 
           {draft &&
             float(
-              "New note",
+              draft.id ? m.titleEditNote : m.titleNewNote,
               draft,
               () => setDraft(null),
               <form onSubmit={addNote}>
                 <p className="se-eyebrow">
-                  {notes.length + 1} · {draft.element.component ?? "page"} › {draft.element.tag}
+                  {draft.id ? notes.findIndex((n) => n.id === draft.id) + 1 : notes.length + 1} · {draft.element.component ?? m.page} › {draft.element.tag}
                 </p>
                 {draft.element.text && <p className="se-p se-mt1 se-muted se-truncate" style={{ fontSize: 12 }}>“{draft.element.text}”</p>}
                 <textarea
@@ -568,33 +586,33 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) e.currentTarget.form?.requestSubmit();
                     if (e.key === "Escape") setDraft(null);
                   }}
-                  placeholder="What should change here?"
+                  placeholder={m.placeholder}
                   className={cx("se-field se-mt2", phone && "se-field-phone")}
                 />
                 {multilingual && draft.element.text && (
                   <label className="se-check">
                     <input type="checkbox" checked={draft.languages === "both"} onChange={(e) => setDraft({ ...draft, languages: e.target.checked ? "both" : "this" })} />
-                    All languages
+                    {m.allLanguages}
                   </label>
                 )}
                 <div className="se-row">
                   <button type="button" className="se-btn" onClick={() => setDraft(null)}>
-                    Cancel
+                    {m.cancel}
                   </button>
                   <button type="submit" className="se-btn se-btn-primary" disabled={!draft.text.trim()}>
-                    Add
+                    {draft.id ? m.save : m.add}
                   </button>
                 </div>
               </form>,
-              // Once something is typed, only Cancel or Add closes it: a swipe should not lose the text.
-              !draft.text.trim(),
+              // Once something is typed, only Cancel, Add or Save closes it: a swipe should not lose the text.
+              !draft.text.trim() && !draft.id,
             )}
 
           <div data-site-edit-tray="" className="se-tray">
             {phone ? (
               open && (
                 <Suspense fallback={null}>
-                  <Sheet open onClose={() => setOpen(false)} title="Notes">
+                  <Sheet open onClose={() => setOpen(false)} title={m.titleNotes}>
                     {tray}
                   </Sheet>
                 </Suspense>
@@ -607,7 +625,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             )}
             <button type="button" onClick={() => setOpen(!open)} className="se-toggle">
               <span className="se-dot" />
-              {notes.length ? `${notes.length} note${notes.length === 1 ? "" : "s"}` : "Notes"}
+              {m.notes(notes.length)}
               {pr && <span style={{ fontFamily: "var(--se-mono, ui-monospace, Menlo, monospace)", fontSize: 12, opacity: 0.7 }}>PR #{pr}</span>}
             </button>
           </div>

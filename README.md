@@ -112,6 +112,18 @@ Out of the box the widget inherits the page's font and text colour, takes its su
 
 3. **Override the classes.** Every element carries one `se-*` class (`se-pin`, `se-box`, `se-toggle`, `se-btn-primary`, `se-field`...), applied at single-class specificity, so a site rule wins. The names are a stable API.
 
+## Languages
+
+The widget's own strings ship in English only. Other languages are the site's, given at runtime through `messages`, keyed by locale, and typed as `Messages` so the site's typecheck proves each one complete:
+
+```tsx
+import type { Messages } from "@nuthinking/site-edit/next";
+const es: Messages = { ship: "Publicar", discard: "Descartar", /* every key */ };
+<SiteEdit messages={{ es }} />
+```
+
+Which language shows, in order: the `uiLocale` prop; the page's locale when the site has locales and a language was given for it; the browser's languages; English. A language given with some keys missing reads English for those, so `messages={{ en: { ship: "Publish" } }}` also works as a way to reword single strings. The `site-edit` skill writes the file for a localised site when it installs the widget.
+
 ## Other frameworks
 
 The handlers take a standard `Request` and return a `Response`, so any framework with a catch-all route can mount them: call `GET`, `POST` or `DELETE` with the request. The plain `@nuthinking/site-edit` entry takes `pathname` and `onNavigate` props for the router of your choice; without them it reads `window.location` and does full navigations.

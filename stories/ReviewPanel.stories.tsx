@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ReviewPanel } from "../src/client";
-import { pull } from "./stub";
+import { es, pull } from "./stub";
 
 /* The approve page's panel, standalone: what the email's Ship link opens. */
 const meta = {
@@ -35,6 +35,9 @@ export const SignedOut: Story = { parameters: { signedIn: false } };
 
 /** GitHub did not answer. */
 export const Unavailable: Story = { parameters: { signedIn: true, api: { "GET /review/21": { status: 503, body: { ok: false } } } } };
+
+/** In Spanish. */
+export const Spanish: Story = { args: { uiLocale: "es", messages: { es } }, parameters: { signedIn: true, api: open } };
 
 /** In the tray's style, as on a preview. */
 export const InTray: Story = { args: { standalone: false }, parameters: { signedIn: true, api: open } };

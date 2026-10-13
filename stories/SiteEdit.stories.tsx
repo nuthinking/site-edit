@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SiteEdit } from "../src/client";
-import { notes, pull } from "./stub";
+import { es, notes, pull } from "./stub";
 
 /*
   The widget in each of its states. The fake site around it comes from .storybook/preview.tsx;
@@ -13,6 +13,8 @@ const meta = {
   argTypes: {
     theme: { control: "object", description: "Colours and fonts; sets the --se-* variables. Leave empty to inherit the page." },
     pr: { control: "text" },
+    uiLocale: { control: "select", options: [undefined, "en", "es"] },
+    messages: { control: "object" },
     holdMs: { control: { type: "number", min: 200, max: 1000, step: 50 } },
     pathname: { table: { disable: true } },
     onNavigate: { table: { disable: true } },
@@ -46,6 +48,9 @@ export const OnPreview: Story = {
   args: { pr: "21" },
   parameters: { signedIn: true, mode: true, pr: "21", after: "tray", api: { "GET /review/21": { status: 200, body: { ok: true, pull: pull() } } } },
 };
+
+/** A language given at runtime through `messages`, picked from the page's locale (/es), the browser's, or the uiLocale prop. */
+export const Spanish: Story = { args: { pathname: "/es", messages: { es } }, parameters: { signedIn: true, mode: true, notes: notes.map((n) => ({ ...n, path: "/es", locale: "es" })), after: "tray" } };
 
 /** Themed through the prop: a brand accent, square corners, the site's mono. Edit it in Controls. */
 export const Themed: Story = {

@@ -17,4 +17,5 @@ export function SiteEdit(props: Omit<SiteEditProps, "pathname" | "onNavigate">) 
 }
 
 export { ReviewPanel, type ReviewPanelProps } from "../client/ReviewPanel";
+export { en, type Languages, type Messages } from "../client/messages";
 export type { SiteEditProps, SiteEditTheme };

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { PullView } from "../server/body";
+import { browserLocales, pickLocale, resolveMessages, type Languages } from "./messages";
 import { ensureStyles } from "./styles";
 
 /*
@@ -12,7 +13,6 @@ import { ensureStyles } from "./styles";
 */
 type Problem = "signin" | "missing" | "unavailable";
 
-const problemText = (p: Problem, pr: string | number) => (p === "missing" ? `No pull request #${pr}.` : "GitHub did not answer. Try again in a moment.");
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
 export type ReviewPanelProps = {
@@ -22,9 +22,14 @@ export type ReviewPanelProps = {
   basePath?: string;
   /** On its own page rather than in the tray: larger text, no border, Ship in one tap. */
   standalone?: boolean;
+  /** The panel's strings in other languages, keyed by locale; English is built in. */
+  messages?: Languages;
+  /** Forces the language. Default: the browser's when a language was given for it, else English. */
+  uiLocale?: string;
 };
 
-export function ReviewPanel({ pr, basePath = "/api/site-edit", standalone = false }: ReviewPanelProps) {
+export function ReviewPanel({ pr, basePath = "/api/site-edit", standalone = false, uiLocale, messages: languages }: ReviewPanelProps) {
+  const m = resolveMessages(pickLocale([uiLocale, ...browserLocales()], languages), languages);
   const [pull, setPull] = useState<PullView | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -63,12 +68,12 @@ export function ReviewPanel({ pr, basePath = "/api/site-edit", standalone = fals
       else if (res.status === 401) setProblem("signin");
       else if (data.error === "moved" && data.pull) {
         setPull(data.pull);
-        setNotice("The branch changed since you looked. Reload the preview, look again, then ship.");
+        setNotice(m.moved);
       } else if (data.error === "closed" && data.pull) setPull(data.pull);
-      else if (res.status === 503) setNotice("GitHub did not answer. Try again in a moment.");
-      else setNotice(action === "ship" ? "GitHub could not merge it. See the PR on GitHub for why." : "GitHub could not close it. Try again, or close it on GitHub.");
+      else if (res.status === 503) setNotice(m.githubSilent);
+      else setNotice(action === "ship" ? m.mergeFailed : m.closeFailed);
     } catch {
-      setNotice("No connection. Try again.");
+      setNotice(m.noConnection);
     }
     setBusy(false);
     setConfirm(null);
@@ -80,55 +85,55 @@ export function ReviewPanel({ pr, basePath = "/api/site-edit", standalone = fals
     return (
       <div className={wrap}>
         <a href={`${base}/auth?return=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : "/")}`} className="se-link">
-          Sign in with GitHub
+          {m.signIn}
         </a>{" "}
-        to review this change.
+        {m.signInToReview}
       </div>
     );
-  if (problem) return <p className={cx(wrap, "se-muted se-p")}>{problemText(problem, pr)}</p>;
-  if (!pull) return <p className={cx(wrap, "se-muted se-p")}>Loading…</p>;
+  if (problem) return <p className={cx(wrap, "se-muted se-p")}>{problem === "missing" ? m.noPull(pr) : m.githubSilent}</p>;
+  if (!pull) return <p className={cx(wrap, "se-muted se-p")}>{m.loading}</p>;
 
   return (
     <div className={wrap}>
       <p className="se-eyebrow">
-        PR #{pull.number} · {pull.state}
+        PR #{pull.number} · {pull.state === "open" ? m.stateOpen : pull.state === "merged" ? m.stateMerged : m.stateClosed}
       </p>
       <p className={cx("se-title", standalone && "se-title-large")}>{pull.title}</p>
       {/* The agent's report, rendered server-side from the PR description with raw HTML escaped. */}
       <div className={cx("se-report", standalone ? "se-report-large" : "se-report-scroll")} dangerouslySetInnerHTML={{ __html: pull.html }} />
       <p className="se-p se-mt2">
         <a href={pull.url} target="_blank" rel="noreferrer" className="se-link">
-          On GitHub
+          {m.onGitHub}
         </a>
       </p>
-      {pull.state === "merged" && <p className="se-p se-mt3" style={{ color: "var(--se-accent-ink, #1e40af)" }}>Shipped. The live site updates in a couple of minutes.</p>}
-      {pull.state === "closed" && <p className="se-p se-mt3 se-muted">Discarded. The request stays open for another attempt.</p>}
+      {pull.state === "merged" && <p className="se-p se-mt3" style={{ color: "var(--se-accent-ink, #1e40af)" }}>{m.shipped}</p>}
+      {pull.state === "closed" && <p className="se-p se-mt3 se-muted">{m.discarded}</p>}
       {notice && <p className="se-p se-mt3 se-error">{notice}</p>}
       {pull.state === "open" && pull.agent && (
         <div className="se-row se-mt3" style={{ justifyContent: "flex-start", flexWrap: "wrap" }}>
           {confirm ? (
             <>
-              <span className="se-muted">{confirm === "ship" ? "Merge to the live site?" : "Close without merging?"}</span>
+              <span className="se-muted">{confirm === "ship" ? m.confirmShip : m.confirmDiscard}</span>
               <button type="button" className={cx("se-btn", confirm === "ship" ? "se-btn-primary" : "se-btn-danger")} disabled={busy} onClick={() => act(confirm)}>
-                {busy ? "Working…" : confirm === "ship" ? "Yes, ship" : "Yes, discard"}
+                {busy ? m.working : confirm === "ship" ? m.yesShip : m.yesDiscard}
               </button>
               <button type="button" className="se-btn" disabled={busy} onClick={() => setConfirm(null)}>
-                No
+                {m.no}
               </button>
             </>
           ) : (
             <>
               <button type="button" className="se-btn se-btn-primary" disabled={busy} onClick={() => (standalone ? act("ship") : setConfirm("ship"))}>
-                {busy ? "Shipping…" : "Ship"}
+                {busy ? m.shipping : m.ship}
               </button>
               <button type="button" className="se-btn se-btn-quiet-danger" onClick={() => setConfirm("discard")}>
-                Discard
+                {m.discard}
               </button>
             </>
           )}
         </div>
       )}
-      {pull.state === "open" && !pull.agent && <p className="se-p se-mt3 se-muted">Not an agent branch; merge it on GitHub.</p>}
+      {pull.state === "open" && !pull.agent && <p className="se-p se-mt3 se-muted">{m.notAgentBranch}</p>}
     </div>
   );
 }
