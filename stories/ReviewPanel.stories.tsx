@@ -7,6 +7,7 @@ const meta = {
   title: "ReviewPanel",
   component: ReviewPanel,
   args: { pr: 21, standalone: true },
+  parameters: { plain: true },
   decorators: [(Story) => <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 0" }}><Story /></div>],
 } satisfies Meta<typeof ReviewPanel>;
 
@@ -39,5 +40,5 @@ export const Unavailable: Story = { parameters: { signedIn: true, api: { "GET /r
 /** In Spanish. */
 export const Spanish: Story = { args: { uiLocale: "es", messages: { es } }, parameters: { signedIn: true, api: open } };
 
-/** In the tray's style, as on a preview. */
-export const InTray: Story = { args: { standalone: false }, parameters: { signedIn: true, api: open } };
+/** In the tray's style, as on a preview: this one keeps the fake site around it. */
+export const InTray: Story = { args: { standalone: false }, parameters: { plain: false, signedIn: true, api: open } };

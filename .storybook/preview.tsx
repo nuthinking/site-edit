@@ -8,9 +8,10 @@ import { setApi, type ApiStub } from "../stories/stub";
   /api/site-edit, `parameters.signedIn`, `mode` and `notes` seed the cookie and localStorage the
   widget reads on mount, and `parameters.after` performs the gesture that reaches the state.
   The toolbar's "scheme" switches the fake site between light and dark, with no --se-* tokens
-  set, to show the widget inheriting the page.
+  set, to show the widget inheriting the page. `parameters.plain` drops the fake site: the approve
+  page the email links to is a plain page with only the panel on it.
 */
-type Params = { api?: ApiStub; signedIn?: boolean; mode?: boolean; notes?: unknown[]; pr?: string; after?: "gesture" | "tray" | "pin" };
+type Params = { api?: ApiStub; signedIn?: boolean; mode?: boolean; notes?: unknown[]; pr?: string; after?: "gesture" | "tray" | "pin"; plain?: boolean };
 
 function seed(p: Params) {
   document.cookie = `site-edit-ui=${p.signedIn ? "tester" : ""}; path=/; max-age=${p.signedIn ? 3600 : 0}`;
@@ -45,8 +46,17 @@ const site: Decorator = (Story, context) => {
   seed(p);
   setApi(p.api ?? {});
   const text = dark ? "#e8e4d8" : "#1a1a1a";
+  const shell = { colorScheme: dark ? "dark" : "light", background: dark ? "#14181a" : "#faf9f6", color: text, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', minHeight: "100vh", margin: -16 } as const;
+  if (p.plain)
+    return (
+      <div key={context.id} style={{ ...shell, padding: "0 16px" }}>
+        <Stage id={context.id} after={p.after}>
+          <Story />
+        </Stage>
+      </div>
+    );
   return (
-    <div key={context.id} style={{ colorScheme: dark ? "dark" : "light", background: dark ? "#14181a" : "#faf9f6", color: text, fontFamily: '"Helvetica Neue", Helvetica, Arial, sans-serif', minHeight: "100vh", margin: -16, padding: "0 24px 48px" }}>
+    <div key={context.id} style={{ ...shell, padding: "0 24px 48px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 0", borderBottom: `1px solid ${dark ? "#2a2f31" : "#e4e2dc"}` }}>
         <nav data-component="SiteHeader" style={{ display: "flex", gap: 24 }}>
           <strong>Acme Studio</strong>
