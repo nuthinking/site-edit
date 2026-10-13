@@ -1,0 +1,72 @@
+# When a preview of one of the agent's `claude/` branches is ready, email whoever asked for the
+# change: screenshots at desktop and phone width in every language, the agent's replies, and links
+# to the preview, to Ship, and to the PR. Two ways in: Vercel reporting a successful preview (later
+# rounds on an open PR), or the Claude workflow right after it opens the PR (the first round, whose
+# preview Vercel built before the PR existed). A marker comment on the PR keeps it to one email per
+# commit, and runs go one at a time so two triggers seconds apart cannot both send before the first
+# has left its marker. Installed by the site-edit skill.
+name: Preview email
+
+# One run at a time, queued rather than cancelled: a cancelled run would be a lost email.
+concurrency:
+  group: preview-email
+  cancel-in-progress: false
+
+on:
+  deployment_status:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+      force:
+        description: Send even if this commit already had an email
+        type: boolean
+        default: false
+
+jobs:
+  email:
+    if: github.event_name == 'workflow_dispatch' || (github.event.deployment_status.state == 'success' && startsWith(github.event.deployment.environment, 'Preview'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      deployments: read
+      pull-requests: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/scripts
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        working-directory: .github/scripts
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      - name: Screenshot the preview and send the email
+        run: node .github/scripts/preview-email.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ inputs.pr }}
+          FORCE: ${{ inputs.force }}
+          DEPLOYMENT_SHA: ${{ github.event.deployment.sha }}
+          PREVIEW_URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+          # SITE-EDIT: the live site, its locales (empty when URLs have no locale segment), and
+          # the approve page's path on the live site (the PR number is appended).
+          SITE_URL: https://example.com
+          LOCALES: ""
+          APPROVE_PATH: /admin/approve
+          BASE_PATH: /api/site-edit
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SITE_EDIT_SECRET: ${{ secrets.SITE_EDIT_SECRET }}
+          EDIT_FROM_EMAIL: ${{ secrets.EDIT_FROM_EMAIL }}
+          EDIT_REPLY_TO: ${{ secrets.EDIT_REPLY_TO }}
+          EDIT_NOTIFY_EMAILS: ${{ secrets.EDIT_NOTIFY_EMAILS }}

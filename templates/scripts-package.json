@@ -1,0 +1,10 @@
+{
+  "name": "site-edit-scripts",
+  "private": true,
+  "type": "module",
+  "description": "Scripts run by the workflows in ../workflows; not part of the site.",
+  "dependencies": {
+    "@nuthinking/site-edit": "^0.1.0",
+    "playwright": "1"
+  }
+}
