@@ -13,6 +13,20 @@ pins and notes on the page ──▶ GitHub issue ──▶ Claude Code makes th
    notes on the preview ◀── email: screenshots, replies, Ship ◀── Vercel preview deployment
 ```
 
+## What it looks like
+
+![A note on the headline: the pin's box names the component and the element, quotes its text, and takes the note](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/note.png)
+
+| Notes across pages, in the tray | On a preview: the agent's replies, Ship and Discard |
+|---|---|
+| ![The tray lists the batch grouped by page, with Send](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/tray.png) | ![The review panel in the tray on a pull request's preview](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/review.png) |
+
+| On a phone: the note as a bottom sheet | The tray as a sheet | The approve page the email links to |
+|---|---|---|
+| ![The note box as a bottom sheet with the keyboard](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-note.png) | ![The tray as a bottom sheet](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-tray.png) | ![The approve page: title, replies, Ship](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/approve.png) |
+
+The site in the pictures is the fake one Storybook wraps the widget in; the widget inherits its font and colours, and its accent is the default blue.
+
 ## What is in the package
 
 | Entry | Runs | What it is |
