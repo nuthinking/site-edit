@@ -19,7 +19,7 @@ pins and notes on the page ──▶ GitHub issue ──▶ Claude Code makes th
 
 | Notes across pages, in the tray | On a preview: the agent's replies, Ship and Discard |
 |---|---|
-| ![The tray lists the batch grouped by page, with Send](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/tray.png) | ![The review panel in the tray on a pull request's preview](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/review.png) |
+| ![The tray lists the batch grouped by page, with Request change](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/tray.png) | ![The review panel in the tray on a pull request's preview](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/review.png) |
 
 | On a phone: the note form, full screen | The tray as a bottom panel | The approve page the email links to |
 |---|---|---|
@@ -87,7 +87,7 @@ Then the settings outside the code: a GitHub App for sign-in, repository secrets
 
 **Sign-in.** A GitHub App of your own. The callback exchanges the code for a user token, asks GitHub whether the user has write access to the repository, and refuses otherwise. The session is a sealed cookie (AES-GCM through WebCrypto, keyed from `SITE_EDIT_SECRET`) for 30 days; a plain cookie with the login tells the widget to show itself. Previews on `*.vercel.app` are not registered callback URLs, so a preview sends the sign-in to the live site and gets the login back through a one-minute sealed grant bound to its origin.
 
-**The bridge.** Send posts the batch; the server checks write access again and creates the issue with the user's own token, labelled `site-notes`, mentioning `@claude`, one numbered section per note. From a preview it comments on that PR instead, so the agent updates the same branch. The sender's primary GitHub address travels with the batch, sealed, so the email reaches them and nobody reading the repository sees it.
+**The bridge.** Request change posts the batch; the server checks write access again and creates the issue with the user's own token, labelled `site-notes`, mentioning `@claude`, one numbered section per note. From a preview it comments on that PR instead, so the agent updates the same branch. The sender's primary GitHub address travels with the batch, sealed, so the email reaches them and nobody reading the repository sees it.
 
 **Approval.** The review panel shows the PR's title, the agent's report rendered for editors, and **Ship** and **Discard**. Ship squash-merges under the editor's own token and carries the commit the editor was shown, so GitHub refuses if the branch moved since. Only branches with the agent's prefix can be shipped or discarded from the site. In the tray both actions sit behind a second tap; on the approve page Ship is one tap, since arriving from the email is the intention.
 
