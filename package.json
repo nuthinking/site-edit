@@ -1,6 +1,6 @@
 {
   "name": "@nuthinking/site-edit",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Edit a website from the website. Pins and notes on the page become a GitHub issue; an AI agent makes the change on a branch; a preview and an email with Ship follow.",
   "keywords": [
     "site-edit",
