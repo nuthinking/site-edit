@@ -17,27 +17,28 @@ export type Messages = {
   signInNeeded: string;
   signIn: string;
   cancel: string;
-  /* boxes */
+  close: string;
+  /* boxes: a note is a requested change, and the labels say change */
   titleSignIn: string;
-  titleNote: string;
-  titleNewNote: string;
-  titleEditNote: string;
-  titleNotes: string;
+  titleChange: string;
+  titleNewChange: string;
+  titleEditChange: string;
+  titleChanges: string;
   page: string;
   placeholder: string;
   allLanguages: string;
-  add: string;
+  addMore: string;
   save: string;
   edit: string;
   delete: string;
-  deleteNote: string;
-  /* tray */
-  notes: (n: number) => string;
-  send: (n: number) => string;
-  sending: string;
-  sent: string;
+  deleteChange: string;
+  /* the batch */
+  changes: (n: number) => string;
+  request: (n: number) => string;
+  requesting: string;
+  requested: string;
   followOnGitHub: string;
-  sendFailed: string;
+  requestFailed: string;
   exit: string;
   logOut: string;
   /* review panel */
@@ -68,30 +69,31 @@ export type Messages = {
 };
 
 export const en: Messages = {
-  hintDesktop: "Alt+right-click, or press and hold, on anything to add a note.",
-  hintPhone: "Press and hold on anything to add a note.",
+  hintDesktop: "Alt+right-click, or press and hold, on anything to ask for a change.",
+  hintPhone: "Hold one finger on anything to ask for a change.",
   signInNeeded: "Editing this site needs write access to its repository.",
   signIn: "Sign in with GitHub",
   cancel: "Cancel",
+  close: "Close",
   titleSignIn: "Sign in",
-  titleNote: "Note",
-  titleNewNote: "New note",
-  titleEditNote: "Edit note",
-  titleNotes: "Notes",
+  titleChange: "Change",
+  titleNewChange: "New change",
+  titleEditChange: "Edit change",
+  titleChanges: "Changes",
   page: "page",
   placeholder: "What should change here?",
   allLanguages: "All languages",
-  add: "Add",
+  addMore: "Add more",
   save: "Save",
   edit: "Edit",
   delete: "Delete",
-  deleteNote: "Delete note",
-  notes: (n) => (n === 0 ? "Notes" : n === 1 ? "1 note" : `${n} notes`),
-  send: (n) => (n ? `Send ${n}` : "Send"),
-  sending: "Sending…",
-  sent: "Sent.",
+  deleteChange: "Delete change",
+  changes: (n) => (n === 0 ? "Changes" : n === 1 ? "1 change" : `${n} changes`),
+  request: (n) => (n > 1 ? `Request ${n} changes` : "Request change"),
+  requesting: "Requesting…",
+  requested: "Requested.",
   followOnGitHub: "Follow it on GitHub",
-  sendFailed: "Could not send. Try again.",
+  requestFailed: "Could not request. Try again.",
   exit: "Exit",
   logOut: "Log out",
   noPull: (pr) => `No pull request #${pr}.`,

@@ -61,17 +61,20 @@ jobs:
           BASE: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
+          # Each call gets three tries: GitHub occasionally answers with an empty body, which gh
+          # reports as "unexpected end of JSON input", and that once lost a pull request.
+          try() { local n; for n in 1 2 3; do "$@" && return 0; echo "Attempt $n failed: $1 ${2:-}" >&2; sleep 5; done; return 1; }
           # Through the API, not git: the action replaces the checkout's git credentials and
           # removes them when it is done, so git cannot reach GitHub from here.
-          branch=$(gh api "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq "[.[].name | select(startswith(\"claude/issue-${ISSUE}-\"))] | sort | last // empty")
+          branch=$(try gh api "repos/${GITHUB_REPOSITORY}/branches?per_page=100" --jq "[.[].name | select(startswith(\"claude/issue-${ISSUE}-\"))] | sort | last // empty")
           if [ -z "$branch" ]; then echo "No branch was pushed for #${ISSUE}; nothing to open."; exit 0; fi
-          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')" ]; then echo "A pull request for $branch is already open."; exit 0; fi
-          ahead=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE}...${branch}" --jq '.ahead_by')
+          if [ -n "$(try gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')" ]; then echo "A pull request for $branch is already open."; exit 0; fi
+          ahead=$(try gh api "repos/${GITHUB_REPOSITORY}/compare/${BASE}...${branch}" --jq '.ahead_by')
           if [ "$ahead" = "0" ]; then echo "$branch has no commits beyond ${BASE}; nothing to open."; exit 0; fi
-          title=$(gh issue view "$ISSUE" --json title --jq '.title' | sed 's/^Site: //')
+          title=$(try gh issue view "$ISSUE" --json title --jq '.title' | sed 's/^Site: //')
           # The agent's final report (its comment on the issue) becomes the PR description.
-          gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" --jq '[.[] | select(.user.login == "claude[bot]")] | last | .body // ""' > body.md
+          try gh api "repos/${GITHUB_REPOSITORY}/issues/${ISSUE}/comments" --jq '[.[] | select(.user.login == "claude[bot]")] | last | .body // ""' > body.md
           printf '\n\nCloses #%s\n' "$ISSUE" >> body.md
-          url=$(gh pr create --base "$BASE" --head "$branch" --title "$title" --body-file body.md)
+          url=$(try gh pr create --base "$BASE" --head "$branch" --title "$title" --body-file body.md)
           echo "Opened $url"
-          gh workflow run preview-email.yml -f pr="${url##*/}"
+          try gh workflow run preview-email.yml -f pr="${url##*/}"

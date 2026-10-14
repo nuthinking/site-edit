@@ -1,11 +1,9 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import { describe, find, target, type Described } from "./locate";
 import { browserLocales, pickLocale, resolveMessages, type Languages } from "./messages";
+import { Panel, Presence } from "./Panel";
 import { ReviewPanel } from "./ReviewPanel";
 import { ensureStyles } from "./styles";
-
-// The phone's bottom sheet, loaded the first time one opens; visitors never pay for it.
-const Sheet = lazy(() => import("./Sheet").then((m) => ({ default: m.Sheet })));
 
 /*
   The in-page editor. Alt+right-click (desktop) or, in comment mode, a one-finger hold (touch)
@@ -141,7 +139,8 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
   const [draft, setDraft] = useState<Draft | null>(null);
   const [signIn, setSignIn] = useState<Point | null>(null);
   const [active, setActive] = useState<string | null>(null);
-  const [open, setOpen] = useState(false);
+  // Back from sign-in, the tray starts open: its hint says what to do next.
+  const [open, setOpen] = useState(() => onClient && editor && new URLSearchParams(window.location.search).has("edit"));
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const [sentUrl, setSentUrl] = useState<string | null>(null);
   const [positions, setPositions] = useState<Map<string, Point | null>>(new Map());
@@ -211,11 +210,13 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
       if (!s.editor) return setSignIn(at);
       setModeStored(true);
       setActive(null);
+      setStatus("idle");
       setDraft({ ...at, element: describe(el), text: "", languages: !multilingual || s.locale === sourceLocale ? "both" : "this" });
     };
     const enter = (at: Point) => {
       if (!stateRef.current.editor) return setSignIn(at);
       setModeStored(true);
+      setOpen(true); // the tray's hint reminds that one finger drops the note
       setActive(null);
       setDraft(null);
     };
@@ -256,6 +257,10 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
       touches = [];
       if (fired) {
         if (e.cancelable) e.preventDefault(); // no click after a hold
+        // The hold fired from a timer, which iOS does not count as a gesture: a focus made there
+        // leaves the keyboard down. This touch end is one, so the new note's field is focused here,
+        // and the sheet's own focus handling keeps the page from scrolling it away.
+        document.querySelector<HTMLTextAreaElement>("[data-site-edit] textarea")?.focus();
         window.setTimeout(() => (fired = false), 400);
       }
     };
@@ -375,14 +380,10 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
     setOpen(false);
   };
 
-  const addNote = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!draft || !draft.text.trim()) return;
-    if (draft.id) {
-      saveNotes(notes.map((n) => (n.id === draft.id ? { ...n, text: draft.text.trim(), languages: draft.languages } : n)));
-      setDraft(null);
-      return;
-    }
+  // The batch with the draft in it: an edited note replaced, a new one appended.
+  const withDraft = (): Note[] | null => {
+    if (!draft || !draft.text.trim()) return null;
+    if (draft.id) return notes.map((n) => (n.id === draft.id ? { ...n, text: draft.text.trim(), languages: draft.languages } : n));
     const note: Note = {
       id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
       text: draft.text.trim(),
@@ -392,9 +393,24 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
       viewport: { w: window.innerWidth, h: window.innerHeight },
       element: draft.element,
     };
-    saveNotes([...notes, note]);
+    return [...notes, note];
+  };
+  // "Add more" (or "Save" for an edit): the note joins the batch and the form closes.
+  const addNote = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const next = withDraft();
+    if (!next) return;
+    saveNotes(next);
     setDraft(null);
     setStatus("idle");
+  };
+  // "Request change": the batch with this note goes out from the form itself. The button reads
+  // "Requesting…" meanwhile; on success the form closes and nothing else opens, on failure it
+  // stays with the text and a line saying so.
+  const requestFromForm = async () => {
+    const next = withDraft();
+    if (!next) return;
+    if (await send(next)) setDraft(null);
   };
 
   /** Opens an existing note in the note box, prefilled; Save replaces its text. */
@@ -415,10 +431,10 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
     setActive(n.id);
   };
 
-  const send = async () => {
+  const send = async (batch: Note[] = notes): Promise<boolean> => {
     setStatus("sending");
     const payload = {
-      notes: notes.map((n, i) => ({ n: i + 1, text: n.text, path: n.path, locale: n.locale, languages: n.languages, viewport: n.viewport, element: n.element })),
+      notes: batch.map((n, i) => ({ n: i + 1, text: n.text, path: n.path, locale: n.locale, languages: n.languages, viewport: n.viewport, element: n.element })),
       pr,
       ref: branch,
       origin: window.location.origin,
@@ -427,14 +443,17 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
       const res = await fetch(`${base}/request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) {
         if (res.status === 401) setLoginName("");
-        return setStatus("failed");
+        setStatus("failed");
+        return false;
       }
       const { url } = (await res.json()) as { url: string };
       setSentUrl(url);
       saveNotes([]);
       setStatus("sent");
+      return true;
     } catch {
       setStatus("failed");
+      return false;
     }
   };
 
@@ -444,14 +463,13 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
   const here = notes.filter((n) => n.path === pathname);
   const byPage = [...new Set(notes.map((n) => n.path))].map((p) => ({ path: p, items: notes.filter((n) => n.path === p) }));
 
-  // A box beside the pin on desktop; a bottom sheet on a phone.
-  const float = (key: string, at: Point, onClose: () => void, children: ReactNode, dismissible = true) =>
+  // A box beside the pin on desktop; on a phone a bottom panel, or the full screen for the note
+  // form, the one box with a keyboard. The caller wraps it in Presence so it can animate out.
+  const float = (key: string, at: Point, onClose: () => void, children: ReactNode, full = false) =>
     phone ? (
-      <Suspense key={key} fallback={null}>
-        <Sheet open onClose={onClose} title={key} dismissible={dismissible}>
-          <div className="se-pad">{children}</div>
-        </Sheet>
-      </Suspense>
+      <Panel key={key} title={key} closeLabel={m.close} onClose={onClose} full={full}>
+        <div className="se-pad">{children}</div>
+      </Panel>
     ) : (
       <div key={key} data-lenis-prevent="" className="se-box" style={popover(at)}>
         {children}
@@ -475,7 +493,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                   <span className="se-note-n">{notes.indexOf(n) + 1}</span>
                   <span className="se-clamp">{n.text}</span>
                 </button>
-                <button type="button" aria-label={m.deleteNote} onClick={() => remove(n.id)} className="se-x">
+                <button type="button" aria-label={m.deleteChange} onClick={() => remove(n.id)} className="se-x">
                   ×
                 </button>
               </div>
@@ -492,27 +510,28 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             {m.logOut}
           </button>
         </div>
-        <button type="button" className="se-btn se-btn-primary" onClick={send} disabled={notes.length === 0 || status === "sending"}>
-          {status === "sending" ? m.sending : m.send(notes.length)}
+        <button type="button" className={cx("se-btn se-btn-primary", status === "sending" && "se-pulse")} onClick={() => send()} disabled={notes.length === 0 || status === "sending"}>
+          {status === "sending" ? m.requesting : m.request(notes.length)}
         </button>
       </div>
       {status === "sent" && sentUrl && (
         <p className="se-status se-muted">
-          {m.sent}{" "}
+          {m.requested}{" "}
           <a href={sentUrl} target="_blank" rel="noreferrer" className="se-link">
             {m.followOnGitHub}
           </a>
           .
         </p>
       )}
-      {status === "failed" && <p className="se-status se-error">{m.sendFailed}</p>}
+      {status === "failed" && <p className="se-status se-error">{m.requestFailed}</p>}
     </>
   );
 
   return (
     <div data-site-edit="" className="se">
-      {signIn &&
-        float(
+      <Presence show={!!signIn}>
+        {signIn &&
+          float(
           m.titleSignIn,
           signIn,
           () => setSignIn(null),
@@ -528,6 +547,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             </div>
           </>,
         )}
+      </Presence>
 
       {editor && mode && (
         <>
@@ -536,16 +556,17 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             if (!p) return null;
             const i = notes.indexOf(n) + 1;
             return (
-              <button key={n.id} type="button" aria-label={`${m.titleNote} ${i}`} onClick={() => setActive(active === n.id ? null : n.id)} className="se-pin" data-active={active === n.id ? "" : undefined} style={{ left: p.x, top: p.y }}>
+              <button key={n.id} type="button" aria-label={`${m.titleChange} ${i}`} onClick={() => setActive(active === n.id ? null : n.id)} className="se-pin" data-active={active === n.id ? "" : undefined} style={{ left: p.x, top: p.y }}>
                 {i}
               </button>
             );
           })}
 
-          {activeNote &&
-            activeAt &&
-            float(
-              m.titleNote,
+          <Presence show={!!(activeNote && activeAt)}>
+            {activeNote &&
+              activeAt &&
+              float(
+              m.titleChange,
               activeAt,
               () => setActive(null),
               <>
@@ -566,10 +587,12 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                 </div>
               </>,
             )}
+          </Presence>
 
-          {draft &&
-            float(
-              draft.id ? m.titleEditNote : m.titleNewNote,
+          <Presence show={!!draft}>
+            {draft &&
+              float(
+              draft.id ? m.titleEditChange : m.titleNewChange,
               draft,
               () => setDraft(null),
               <form onSubmit={addNote}>
@@ -578,7 +601,8 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                 </p>
                 {draft.element.text && <p className="se-p se-mt1 se-muted se-truncate" style={{ fontSize: 12 }}>“{draft.element.text}”</p>}
                 <textarea
-                  autoFocus
+                  // Not on phones: a focus outside a gesture is silent there; the hold's touch end does it.
+                  autoFocus={!phone}
                   rows={3}
                   value={draft.text}
                   onChange={(e) => setDraft({ ...draft, text: e.target.value })}
@@ -596,27 +620,35 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
                   </label>
                 )}
                 <div className="se-row">
-                  <button type="button" className="se-btn" onClick={() => setDraft(null)}>
-                    {m.cancel}
+                  {/* The phone panel closes from its bar; the desktop popover needs Cancel. */}
+                  {!phone && (
+                    <button type="button" className="se-btn" onClick={() => setDraft(null)}>
+                      {m.cancel}
+                    </button>
+                  )}
+                  {/* "Add more" (or Save) keeps building the batch; "Request" sends everything with this note. */}
+                  <button type="submit" className="se-btn se-btn-secondary" disabled={!draft.text.trim()}>
+                    {draft.id ? m.save : m.addMore}
                   </button>
-                  <button type="submit" className="se-btn se-btn-primary" disabled={!draft.text.trim()}>
-                    {draft.id ? m.save : m.add}
+                  <button type="button" className={cx("se-btn se-btn-primary", status === "sending" && "se-pulse")} onClick={requestFromForm} disabled={!draft.text.trim() || status === "sending"}>
+                    {status === "sending" ? m.requesting : m.request(draft.id ? notes.length : notes.length + 1)}
                   </button>
                 </div>
+                {status === "failed" && <p className="se-p se-mt1 se-error se-right">{m.requestFailed}</p>}
               </form>,
-              // Once something is typed, only Cancel, Add or Save closes it: a swipe should not lose the text.
-              !draft.text.trim() && !draft.id,
+              true,
             )}
+          </Presence>
 
           <div data-site-edit-tray="" className="se-tray">
             {phone ? (
-              open && (
-                <Suspense fallback={null}>
-                  <Sheet open onClose={() => setOpen(false)} title={m.titleNotes}>
+              <Presence show={open}>
+                {open && (
+                  <Panel title={m.titleChanges} closeLabel={m.close} onClose={() => setOpen(false)}>
                     {tray}
-                  </Sheet>
-                </Suspense>
-              )
+                  </Panel>
+                )}
+              </Presence>
             ) : (
               /* Hidden rather than unmounted when closed, so the review panel loads once. */
               <div data-lenis-prevent="" className="se-panel" hidden={!open}>
@@ -625,7 +657,7 @@ export function SiteEdit({ basePath = "/api/site-edit", pr, branch, locales = []
             )}
             <button type="button" onClick={() => setOpen(!open)} className="se-toggle">
               <span className="se-dot" />
-              {m.notes(notes.length)}
+              {m.changes(notes.length)}
               {pr && <span style={{ fontFamily: "var(--se-mono, ui-monospace, Menlo, monospace)", fontSize: 12, opacity: 0.7 }}>PR #{pr}</span>}
             </button>
           </div>

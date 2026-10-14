@@ -21,9 +21,9 @@ pins and notes on the page ──▶ GitHub issue ──▶ Claude Code makes th
 |---|---|
 | ![The tray lists the batch grouped by page, with Send](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/tray.png) | ![The review panel in the tray on a pull request's preview](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/review.png) |
 
-| On a phone: the note as a bottom sheet | The tray as a sheet | The approve page the email links to |
+| On a phone: the note form, full screen | The tray as a bottom panel | The approve page the email links to |
 |---|---|---|
-| ![The note box as a bottom sheet with the keyboard](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-note.png) | ![The tray as a bottom sheet](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-tray.png) | ![The approve page: title, replies, Ship](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/approve.png) |
+| ![The note form taking the phone's screen](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-note.png) | ![The tray as a bottom panel](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/phone-tray.png) | ![The approve page: title, replies, Ship](https://raw.githubusercontent.com/nuthinking/site-edit/main/docs/screenshots/approve.png) |
 
 The site in the pictures is the fake one Storybook wraps the widget in; the widget inherits its font and colours, and its accent is the default blue.
 
@@ -81,7 +81,7 @@ Then the settings outside the code: a GitHub App for sign-in, repository secrets
 
 ## How it works
 
-**Gestures.** On desktop, Alt+right-click on anything drops a pin and opens a note; without a session it offers GitHub sign-in. On a phone, a two-finger hold signs in or enters comment mode, and in comment mode a one-finger hold on an element drops a pin. Nothing native uses a two-finger hold, so visitors keep their long-press menus; the one-finger hold exists only in comment mode. Boxes with a text field are bottom sheets on phones ([Vaul](https://vaul.emilkowal.ski)), loaded the first time one opens.
+**Gestures.** On desktop, Alt+right-click on anything drops a pin and opens a note; without a session it offers GitHub sign-in. On a phone, a two-finger hold signs in or enters comment mode and opens the tray, whose hint says that one finger asks for a change; in comment mode a one-finger hold on an element drops a pin. Nothing native uses a two-finger hold, so visitors keep their long-press menus; the one-finger hold exists only in comment mode. On phones the note form takes the whole screen, the one surface with a keyboard, so nothing sits under the keyboard; the sign-in box, an open note and the tray are bottom panels. Both are plain CSS, no sheet library: one was tried and the iOS keyboard defeated it. The form's buttons are "Add more", to build a batch, and "Request change", which adds the note and sends everything at once; the tray's button is the same "Request change". The widget's labels say *changes*, not notes.
 
 **What a pin carries.** The page path and locale; the nearest `data-component` name and which instance of it; the element's tag, class string, text, selection and image source; four ancestors; the viewport; and a CSS path for finding the element again. Class strings are literal in most source code, so the agent lands on the right line without React internals. Mark your site components with `data-component="<Name>"`, where the name is the file name.
 

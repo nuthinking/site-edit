@@ -6,8 +6,10 @@ test("the English source has no empty string and does not shout", () => {
   for (const [key, value] of Object.entries(en)) {
     if (typeof value === "string") assert.ok(value.trim().length > 0 && !value.includes("!"), `en.${key}`);
   }
-  assert.equal(en.notes(0), "Notes");
-  assert.equal(en.notes(2), "2 notes");
+  assert.equal(en.changes(0), "Changes");
+  assert.equal(en.changes(2), "2 changes");
+  assert.equal(en.request(1), "Request change");
+  assert.equal(en.request(3), "Request 3 changes");
 });
 
 test("pickLocale prefers a full tag, then the primary tag, among the languages given", () => {

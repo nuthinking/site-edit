@@ -65,8 +65,7 @@
     }
   },
   "dependencies": {
-    "marked": "^18.0.0",
-    "vaul": "^1.1.2"
+    "marked": "^18.0.0"
   },
   "devDependencies": {
     "@storybook/react-vite": "^10.6.2",

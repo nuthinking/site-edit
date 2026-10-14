@@ -58,11 +58,11 @@ export const Themed: Story = {
   parameters: { signedIn: true, mode: true, notes, after: "tray" },
 };
 
-/** Phone: the note box is a bottom sheet. */
+/** Phone: the note form takes the full screen. */
 export const DraftPhone: Story = { globals: phone, parameters: { signedIn: true, mode: true, after: "gesture" } };
 
-/** Phone: the tray is a bottom sheet. */
+/** Phone: the tray is a bottom panel. */
 export const NotesPhone: Story = { globals: phone, parameters: { signedIn: true, mode: true, notes, after: "tray" } };
 
-/** Phone: the sign-in box as a sheet. */
+/** Phone: the sign-in box as a bottom panel. */
 export const SignedOutPhone: Story = { globals: phone, parameters: { signedIn: false, after: "gesture" } };
